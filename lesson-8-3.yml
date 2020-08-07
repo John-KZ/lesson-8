@@ -1,0 +1,40 @@
+- name: maven and jdk
+  hosts: web-1
+  become: 'yes'
+  tasks:
+    - name: Ensure maven and package is present
+      apt:
+        name:
+          - maven
+          - default-jdk
+        state: present
+    - name: Clone repository into /root/repo.
+      git:
+        repo: 'https://github.com/boxfuse/boxfuse-sample-java-war-hello.git'
+        dest: /root/repo
+        clone: yes
+    - name: compile maven
+      shell: cd /root/repo/ && mvn package
+
+    - name: ansible copy file from remote to local.
+      fetch:
+       src: /root/repo/target/hello-1.0.war
+       dest: /root/data/hello-1.0.war
+       flat: true
+- name: start APP
+  hosts: web-2
+  become: 'yes'
+
+  tasks:
+    - name: install docker
+      apt: update_cache=yes name=docker.io state=latest
+
+    - name: copy files
+      copy: src=/root/data/{{ item }} dest=/root/data/
+      with_items:
+        - dockerfile
+        - hello-1.0.war
+
+    - name: docker build & docker run
+      shell: cd /root/data/ && docker build . -t mvn_tomcat && docker run --name mvn -d -p 8080:8080 mvn_tomcat:latest
+
